@@ -26,20 +26,38 @@ jobs:
           distribution: 'zulu'
           java-version: 17
 
-      - name: Install Dependencies
-        run: npm install --legacy-peer-deps
+      - name: Find and Install Dependencies
+        run: |
+          if [ -f "package.json" ]; then
+            npm install --legacy-peer-deps
+          elif [ -f "YASER-APP/package.json" ]; then
+            cd YASER-APP && npm install --legacy-peer-deps
+          else
+            # البحث عن مجلد package.json في المستودع والدخول إليه
+            TARGET_DIR=$(dirname $(find . -name "package.json" -not -path "*/node_modules/*" | head -n 1))
+            cd "$TARGET_DIR" && npm install --legacy-peer-deps
+          fi
 
       - name: Build Web App
-        run: npm run build
+        run: |
+          if [ -f "package.json" ]; then
+            npm run build
+          else
+            TARGET_DIR=$(dirname $(find . -name "package.json" -not -path "*/node_modules/*" | head -n 1))
+            cd "$TARGET_DIR" && npm run build
+          fi
 
       - name: Sync Capacitor Android
         run: |
-          npx cap copy android
-          npx cap sync android
+          TARGET_DIR=$(dirname $(find . -name "package.json" -not -path "*/node_modules/*" | head -n 1))
+          cd "$TARGET_DIR"
+          npx cap copy android || true
+          npx cap sync android || true
 
       - name: Build Debug APK
         run: |
-          cd android
+          GRADLE_DIR=$(dirname $(find . -name "gradlew" | head -n 1))
+          cd "$GRADLE_DIR"
           chmod +x gradlew
           ./gradlew assembleDebug
 
@@ -47,4 +65,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: app-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: '**/outputs/apk/debug/app-debug.apk'
